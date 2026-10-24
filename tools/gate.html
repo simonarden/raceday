@@ -65,9 +65,11 @@ p{margin:0;color:#8a8a8f;font-size:14px}
   function hex(u){return[].map.call(u,function(x){return("0"+x.toString(16)).slice(-2)}).join("")}
   function b64(u){var s="";for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s)}
   function unb64(s){var r=atob(s),u=new Uint8Array(r.length);for(var i=0;i<r.length;i++)u[i]=r.charCodeAt(i);return u}
-  function load(){if(!vault)vault=fetch("vault.bin",{cache:"no-cache"}).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.arrayBuffer()}).then(function(a){a=new Uint8Array(a);return{salt:a.slice(0,16),iv:a.slice(16,28),ct:a.slice(28)}});return vault}
+  var VER={};
+  function load(){if(!vault)vault=fetch("version.json?ts="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():{}}).catch(function(){return{}}).then(function(v){VER=v&&v.v?v:{};
+    return fetch("vault.bin?v="+encodeURIComponent(VER.v||Date.now()),{cache:"no-store"})}).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.arrayBuffer()}).then(function(a){a=new Uint8Array(a);return{salt:a.slice(0,16),iv:a.slice(16,28),ct:a.slice(28)}});return vault}
   function open(key,v){return S.decrypt({name:"AES-GCM",iv:v.iv},key,v.ct).then(function(p){return new TextDecoder().decode(p)})}
-  function show(html){document.open();document.write(html);document.close()}
+  function show(html){if(VER.v)html=html.replace("<head>",'<head><script>window.__RD='+JSON.stringify({v:String(VER.v),t:String(VER.t||"")}).replace(/</g,"\\u003c")+'<\/script>');document.open();document.write(html);document.close()}
   function derive(code,salt){return S.importKey("raw",new TextEncoder().encode(code),"PBKDF2",false,["deriveKey"]).then(function(k){return S.deriveKey({name:"PBKDF2",hash:"SHA-256",salt:salt,iterations:ITER},k,{name:"AES-GCM",length:256},true,["decrypt"])})}
   function reset(err){b.classList.remove("shake");void b.offsetWidth;if(err){b.classList.add("shake","bad");m.className="msg err";m.textContent=err;if(navigator.vibrate)navigator.vibrate(120)}
     setTimeout(function(){b.classList.remove("bad")},700);ins.forEach(function(i){i.value="";i.classList.remove("f");i.disabled=false});g.classList.remove("busy");ins[0].focus()}

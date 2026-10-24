@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the passcode-gated site. Publishes ONLY: index.html (gate), vault.bin (ciphertext), icons, manifest.
+# Builds the passcode-gated site. Publishes ONLY: index.html (gate), vault.bin (ciphertext), version.json (hash+time), icons, manifest.
 # Usage: RACEDAY_PASSCODE=xxxx ./build.sh  (the code is read from the environment; never pass it as an argument)
 # Team bots: edit src/data.json (picks, alerts, bet status), then rerun this script.
 set -euo pipefail
@@ -16,9 +16,16 @@ if ! [[ "$RACEDAY_PASSCODE" =~ ^[0-9]{4}$ ]]; then echo "RACEDAY_PASSCODE must b
 mkdir -p "$OUT"
 node tools/encrypt.mjs build/app.html "$OUT/vault.bin" tools/salt.hex "$ITER"
 sed "s/@@ITER@@/$ITER/" tools/gate.html > "$OUT/index.html"
+# version.json: build hash + time only (no race data). The app polls it and the gate uses it to cache-bust vault.bin.
+python3 - "$OUT/vault.bin" "$OUT/version.json" <<'PY'
+import hashlib, json, sys, datetime
+h = hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest()[:12]
+t = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+open(sys.argv[2], "w").write(json.dumps({"v": h, "t": t}))
+PY
 if [ "$OUT" != "." ]; then cp apple-touch-icon.png icon-512.png icon.svg manifest.webmanifest .nojekyll "$OUT/"; fi
 # Safety check: no plain-text race data (runner, race and meeting names from src/data.json) may appear in published files.
-python3 - "$OUT/index.html" "$OUT/vault.bin" <<'PY'
+python3 - "$OUT/index.html" "$OUT/vault.bin" "$OUT/version.json" <<'PY'
 import json, sys
 d = json.load(open("src/data.json"))
 words = {m["name"] for m in d["meetings"]} | {r["name"] for r in d["races"]} | {x["name"] for r in d["races"] for x in r["runners"]}
