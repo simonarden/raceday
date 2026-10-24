@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Race Day</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Race Day">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preload" href="vault.bin" as="fetch" crossorigin>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#fff}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#111;-webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;padding:env(safe-area-inset-top) 24px env(safe-area-inset-bottom)}
+.g{width:100%;max-width:340px;text-align:center;margin-top:-8vh}
+.mk{width:44px;height:44px;margin:0 auto 22px;border-radius:13px;background:#111;display:grid;place-items:center}
+.mk svg{width:22px;height:22px}
+h1{font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
+p{margin:0;color:#8a8a8f;font-size:14px}
+.boxes{display:flex;gap:12px;justify-content:center;margin:30px 0 18px}
+.boxes input{width:58px;height:68px;border-radius:16px;border:1.5px solid #e3e3e8;background:#fafafa;text-align:center;font-size:28px;font-weight:600;color:#111;caret-color:transparent;outline:none;transition:border-color .15s,background .15s,box-shadow .15s;-webkit-appearance:none;appearance:none;font-family:inherit}
+.boxes input:focus{border-color:#111;background:#fff;box-shadow:0 0 0 4px rgba(17,17,17,.06)}
+.boxes input.f{background:#fff;border-color:#c9c9cf}
+.boxes.bad input{border-color:#ff3b30;background:#fff5f4}
+.shake{animation:sh .45s cubic-bezier(.36,.07,.19,.97)}
+@keyframes sh{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
+.msg{min-height:20px;font-size:13px;color:#8a8a8f}
+.msg.err{color:#ff3b30}
+.rm{display:inline-flex;align-items:center;gap:8px;margin-top:18px;font-size:13px;color:#6e6e73;cursor:pointer;user-select:none}
+.rm input{width:16px;height:16px;accent-color:#111;margin:0}
+.busy .boxes input{opacity:.5}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid #d1d1d6;border-top-color:#111;border-radius:50%;animation:r .7s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes r{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.shake,.spin{animation:none}}
+</style>
+</head>
+<body>
+<main class="g" id="g">
+  <div class="mk" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+  <h1>Enter code</h1>
+  <p>This page is private.</p>
+  <form id="f" autocomplete="off" onsubmit="return false">
+    <div class="boxes" id="b" role="group" aria-label="4-digit code">
+      <input inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 1" autocomplete="off">
+      <input inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 2" autocomplete="off">
+      <input inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 3" autocomplete="off">
+      <input inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 4" autocomplete="off">
+    </div>
+    <div class="msg" id="m" aria-live="polite"></div>
+    <label class="rm"><input type="checkbox" id="rm" checked>Remember this device</label>
+  </form>
+  <noscript><p style="margin-top:16px">JavaScript is required.</p></noscript>
+</main>
+<script>
+(function(){
+  "use strict";
+  var ITER=600000, KEY="rd-key", S=crypto&&crypto.subtle, vault=null;
+  var ins=[].slice.call(document.querySelectorAll("#b input")), b=document.getElementById("b"), m=document.getElementById("m"), g=document.getElementById("g");
+  function hex(u){return[].map.call(u,function(x){return("0"+x.toString(16)).slice(-2)}).join("")}
+  function b64(u){var s="";for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s)}
+  function unb64(s){var r=atob(s),u=new Uint8Array(r.length);for(var i=0;i<r.length;i++)u[i]=r.charCodeAt(i);return u}
+  function load(){if(!vault)vault=fetch("vault.bin",{cache:"no-cache"}).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.arrayBuffer()}).then(function(a){a=new Uint8Array(a);return{salt:a.slice(0,16),iv:a.slice(16,28),ct:a.slice(28)}});return vault}
+  function open(key,v){return S.decrypt({name:"AES-GCM",iv:v.iv},key,v.ct).then(function(p){return new TextDecoder().decode(p)})}
+  function show(html){document.open();document.write(html);document.close()}
+  function derive(code,salt){return S.importKey("raw",new TextEncoder().encode(code),"PBKDF2",false,["deriveKey"]).then(function(k){return S.deriveKey({name:"PBKDF2",hash:"SHA-256",salt:salt,iterations:ITER},k,{name:"AES-GCM",length:256},true,["decrypt"])})}
+  function reset(err){b.classList.remove("shake");void b.offsetWidth;if(err){b.classList.add("shake","bad");m.className="msg err";m.textContent=err;if(navigator.vibrate)navigator.vibrate(120)}
+    setTimeout(function(){b.classList.remove("bad")},700);ins.forEach(function(i){i.value="";i.classList.remove("f");i.disabled=false});g.classList.remove("busy");ins[0].focus()}
+  function code(){return ins.map(function(i){return i.value}).join("")}
+  function attempt(){
+    var c=code();if(!/^\d{4}$/.test(c))return;
+    ins.forEach(function(i){i.disabled=true});g.classList.add("busy");m.className="msg";m.innerHTML='<span class="spin"></span>Unlocking';
+    var key;
+    load().then(function(v){return derive(c,v.salt).then(function(k){key=k;return open(k,v)}).then(function(html){
+      if(document.getElementById("rm").checked){S.exportKey("raw",key).then(function(raw){try{localStorage.setItem(KEY,JSON.stringify({s:hex(v.salt),k:b64(new Uint8Array(raw))}))}catch(_){}}).then(function(){show(html)},function(){show(html)})}
+      else show(html)})})
+    .catch(function(e){reset(e&&e.name==="OperationError"?"Wrong code. Try again.":"Couldn\u2019t unlock ("+(e&&e.message||"error")+").")});
+  }
+  ins.forEach(function(inp,i){
+    inp.addEventListener("input",function(){var d=inp.value.replace(/\D/g,"");
+      if(d.length>1){for(var j=0;j<d.length&&i+j<4;j++){ins[i+j].value=d[j];ins[i+j].classList.add("f")}var n=Math.min(i+d.length,3);ins[n].focus()}
+      else{inp.value=d;inp.classList.toggle("f",!!d);if(d&&i<3)ins[i+1].focus()}
+      if(m.classList.contains("err")){m.textContent="";m.className="msg"}
+      if(code().length===4)attempt()});
+    inp.addEventListener("keydown",function(e){if(e.key==="Backspace"&&!inp.value&&i>0){ins[i-1].value="";ins[i-1].classList.remove("f");ins[i-1].focus();e.preventDefault()}
+      else if(e.key==="ArrowLeft"&&i>0)ins[i-1].focus();else if(e.key==="ArrowRight"&&i<3)ins[i+1].focus()});
+    inp.addEventListener("focus",function(){var k=ins.findIndex(function(x){return!x.value});if(k>=0&&k<i)ins[k].focus();else inp.select()});
+    inp.addEventListener("paste",function(e){var d=(e.clipboardData||window.clipboardData).getData("text").replace(/\D/g,"").slice(0,4);if(!d)return;e.preventDefault();d.split("").forEach(function(c,j){ins[j].value=c;ins[j].classList.add("f")});if(d.length===4)attempt();else ins[d.length].focus()});
+  });
+  if(!S){m.className="msg err";m.textContent="This browser can\u2019t unlock the page (needs HTTPS and a modern browser).";return}
+  load().catch(function(){});
+  var saved=null;try{saved=JSON.parse(localStorage.getItem(KEY)||"null")}catch(_){}
+  if(saved&&saved.k){g.classList.add("busy");m.innerHTML='<span class="spin"></span>Unlocking';
+    load().then(function(v){if(saved.s!==hex(v.salt))throw 0;return S.importKey("raw",unb64(saved.k),{name:"AES-GCM"},false,["decrypt"]).then(function(k){return open(k,v)})})
+    .then(show,function(){try{localStorage.removeItem(KEY)}catch(_){}g.classList.remove("busy");m.textContent="";ins[0].focus()})}
+  else ins[0].focus();
+})();
+</script>
+</body>
+</html>

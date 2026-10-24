@@ -1,0 +1,5 @@
+# Plain-text sources and build output: never published
+src/
+build/
+shots/
+*.png.tmp
